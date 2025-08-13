@@ -92,6 +92,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   final FlutterTts flutterTts = FlutterTts();
   late TabController _tabController;
   List<Map<String, String>> _cuentosFavoritos = [];
+  bool _isLoading = false; //importante!!!!! este es el estado de la animacion de carga
 
   @override
   void initState() {
@@ -162,35 +163,43 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   }
 
   void _generarHistoria() async {
-    if (_formKey.currentState!.validate()) {
-      final nombre = _nombreController.text;
-      final animal = _animalController.text;
-      final tipoDeCuento = _tipoDeCuentoSeleccionado != null ? 'de tipo $_tipoDeCuentoSeleccionado' : '';
+  if (_formKey.currentState!.validate()) {
+    setState(() {
+      _isLoading = true; // Inicia la animación de carga
+      _historiaGenerada = ''; // Limpia la historia anterior
+    });
 
-      final prompt =
-          'Escribe una historia (sin restricciones) donde el personaje principal se llama $nombre y algo que le gusta es $animal. La historia debe ser alegre y tener una moraleja sencilla, y que sea $tipoDeCuento.';
+    final nombre = _nombreController.text;
+    final animal = _animalController.text;
+    final tipoDeCuento = _tipoDeCuentoSeleccionado != null ? 'de tipo $_tipoDeCuentoSeleccionado' : '';
 
-      try {
-        final response = await gemini.prompt(
-          parts: [
-            Part.text(prompt),
-          ],
-        );
-        if (mounted) {
-          setState(() {
-            _historiaGenerada = response!.output!;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _historiaGenerada = 'Error al generar la historia: $e';
-          });
-        }
-        print('Error al generar la historia: $e');
+    final prompt = 'Escribe una historia (sin restricciones) donde el personaje principal se llama $nombre y algo que le gusta es $animal. La historia debe ser alegre y tener una moraleja sencilla, y que sea $tipoDeCuento.';
+
+    try {
+      final response = await gemini.prompt(
+        parts: [Part.text(prompt)],
+      );
+      if (mounted) {
+        setState(() {
+          _historiaGenerada = response!.output!;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _historiaGenerada = 'Error al generar la historia: $e';
+        });
+      }
+      print('Error al generar la historia: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Detiene la animación de carga
+        });
       }
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +280,12 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                     child: SingleChildScrollView(
                       child: Column(
                         children: [
+                          if (_isLoading)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32.0),
+                            child: CircularProgressIndicator(),
+                          )
+                        else ...[
                           Text(_historiaGenerada),
                           if (_historiaGenerada.isNotEmpty)
                             Padding(
@@ -292,6 +307,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                               ),
                             ),
                         ],
+                        ]
                       ),
                     ),
                   ),
