@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
-void main() {
-  const apiKey = 'API_KEY';
-  Gemini.init(apiKey: apiKey);
+Future<void> main() async { 
+  WidgetsFlutterBinding.ensureInitialized(); 
+  
+  await dotenv.load(fileName: ".env"); 
+
+  final apiKey = dotenv.env['API_KEY']; 
+
+  if (apiKey == null) {
+    print('Error: GEMINI_API_KEY no encontrada en el archivo .env');
+    return;
+  }
+  
+  Gemini.init(apiKey: apiKey); // <-- 6. Usa la API key
+  
   runApp(const MyApp());
 }
 
