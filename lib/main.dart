@@ -5,20 +5,20 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
-Future<void> main() async { 
-  WidgetsFlutterBinding.ensureInitialized(); 
-  
-  await dotenv.load(fileName: ".env"); 
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  final apiKey = dotenv.env['API_KEY']; 
+  await dotenv.load(fileName: ".env");
+
+  final apiKey = dotenv.env['API_KEY'];
 
   if (apiKey == null) {
     print('Error: GEMINI_API_KEY no encontrada en el archivo .env');
     return;
   }
-  
+
   Gemini.init(apiKey: apiKey); // <-- 6. Usa la API key
-  
+
   runApp(const MyApp());
 }
 
@@ -48,20 +48,26 @@ class MyApp extends StatelessWidget {
             borderSide: BorderSide(color: Colors.white70), // Color del borde
           ),
           enabledBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.white70), // Color del borde habilitado
+            borderSide: BorderSide(
+              color: Colors.white70,
+            ), // Color del borde habilitado
           ),
           focusedBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.blueAccent), // Color del borde al enfocar
+            borderSide: BorderSide(
+              color: Colors.blueAccent,
+            ), // Color del borde al enfocar
           ),
-          labelStyle: const TextStyle(color: Colors.white70), // Color del texto de la etiqueta
-          hintStyle: const TextStyle(color: Colors.white70), // Color del texto de la sugerencia
+          labelStyle: const TextStyle(
+            color: Colors.white70,
+          ), // Color del texto de la etiqueta
+          hintStyle: const TextStyle(
+            color: Colors.white70,
+          ), // Color del texto de la sugerencia
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(foregroundColor: Colors.white),
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black87,
-        ),
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.black87),
         dropdownMenuTheme: DropdownMenuThemeData(
           menuStyle: MenuStyle(
             backgroundColor: WidgetStatePropertyAll(Colors.grey[800]),
@@ -88,11 +94,20 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   String _historiaGenerada = '';
   final gemini = Gemini.instance;
   String? _tipoDeCuentoSeleccionado;
-  final List<String> _tiposDeCuento = ['Aventura', 'Terror', 'Romance', 'Fantasía', 'Ciencia Ficción', 'Misterio', 'Humor'];
+  final List<String> _tiposDeCuento = [
+    'Aventura',
+    'Terror',
+    'Romance',
+    'Fantasía',
+    'Ciencia Ficción',
+    'Misterio',
+    'Humor',
+  ];
   final FlutterTts flutterTts = FlutterTts();
   late TabController _tabController;
   List<Map<String, String>> _cuentosFavoritos = [];
-  bool _isLoading = false; //importante!!!!! este es el estado de la animacion de carga
+  bool _isLoading =
+      false; //importante!!!!! este es el estado de la animacion de carga
 
   @override
   void initState() {
@@ -103,7 +118,10 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
   Future<void> _speak() async {
     await flutterTts.setLanguage("es-ES"); // cambiar el idioma
-    await flutterTts.setVoice({"name": "es-MX-female-1", "locale": "es-ES"}); // Aca se cambia la voz
+    await flutterTts.setVoice({
+      "name": "es-MX-female-1",
+      "locale": "es-ES",
+    }); // Aca se cambia la voz
     await flutterTts.setSpeechRate(1.4); // Ajustar la velocidad
     await flutterTts.speak(_historiaGenerada);
   }
@@ -113,7 +131,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     if (_historiaGenerada.isNotEmpty) {
       final prefs = await SharedPreferences.getInstance();
       List<String>? savedStoriesJson = prefs.getStringList('cuentosGuardados');
-      List<Map<String, String>> savedStories = savedStoriesJson?.map((json) => jsonDecode(json) as Map<String, String>).toList() ?? [];
+      List<Map<String, String>> savedStories = (savedStoriesJson ?? [])
+          .map((json) => jsonDecode(json) as Map<String, String>)
+          .toList();
 
       final cuentoAGuardar = {
         'titulo': 'Cuento de ${_nombreController.text}',
@@ -126,8 +146,11 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
       savedStories.add(cuentoAGuardar);
 
-      final updatedSavedStoriesJson = savedStories.map((story) => jsonEncode(story)).toList();
+      final updatedSavedStoriesJson = savedStories
+          .map((story) => jsonEncode(story))
+          .toList();
       await prefs.setStringList('cuentosGuardados', updatedSavedStoriesJson);
+      await _cargarCuentosGuardados(); // <-- Agrega esta línea aquí
       print('Cuento guardado.'); // <--- Agregar este print
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -144,62 +167,72 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _cargarCuentosGuardados() async {
-    print('Intentando cargar cuentos guardados...'); // <--- Agregar este print
+    print('Intentando cargar cuentos guardados...');
     final prefs = await SharedPreferences.getInstance();
     List<String>? savedStoriesJson = prefs.getStringList('cuentosGuardados');
-    if (savedStoriesJson != null) {
-      setState(() {
-        _cuentosFavoritos = savedStoriesJson
-            .map((json) => jsonDecode(json) as Map<String, String>)
-            .toList();
-      });
-      print('Cuentos guardados cargados: $_cuentosFavoritos'); // <--- Agregar este print
-    } else {
+    print('Leyendo de SharedPreferences: $savedStoriesJson');
+    if (savedStoriesJson == null || savedStoriesJson.isEmpty) {
+      print('No hay cuentos guardados.');
       setState(() {
         _cuentosFavoritos = [];
       });
-      print('No se encontraron cuentos guardados.'); // <--- Agregar este print
+      return;
+    }
+    try {
+      final cuentos = savedStoriesJson
+          .map((json) => Map<String, String>.from(jsonDecode(json)))
+          .toList();
+      print('Cuentos guardados cargados: $cuentos');
+      setState(() {
+        _cuentosFavoritos = cuentos;
+      });
+    } catch (e) {
+      print('Error al cargar cuentos guardados: $e');
+      setState(() {
+        _cuentosFavoritos = [];
+      });
     }
   }
 
   void _generarHistoria() async {
-  if (_formKey.currentState!.validate()) {
-    setState(() {
-      _isLoading = true; // Inicia la animación de carga
-      _historiaGenerada = ''; // Limpia la historia anterior
-    });
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true; // Inicia la animación de carga
+        _historiaGenerada = ''; // Limpia la historia anterior
+      });
 
-    final nombre = _nombreController.text;
-    final animal = _animalController.text;
-    final tipoDeCuento = _tipoDeCuentoSeleccionado != null ? 'de tipo $_tipoDeCuentoSeleccionado' : '';
+      final nombre = _nombreController.text;
+      final animal = _animalController.text;
+      final tipoDeCuento = _tipoDeCuentoSeleccionado != null
+          ? 'de tipo $_tipoDeCuentoSeleccionado'
+          : '';
 
-    final prompt = 'Escribe una historia (sin restricciones) donde el personaje principal se llama $nombre y algo que le gusta es $animal. La historia debe ser alegre y tener una moraleja sencilla, y que sea $tipoDeCuento.';
+      final prompt =
+          'Escribe una historia (sin restricciones) donde el personaje principal se llama $nombre y algo que le gusta es $animal. La historia debe ser alegre y tener una moraleja sencilla, y que sea $tipoDeCuento.';
 
-    try {
-      final response = await gemini.prompt(
-        parts: [Part.text(prompt)],
-      );
-      if (mounted) {
-        setState(() {
-          _historiaGenerada = response!.output!;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _historiaGenerada = 'Error al generar la historia: $e';
-        });
-      }
-      print('Error al generar la historia: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false; // Detiene la animación de carga
-        });
+      try {
+        final response = await gemini.prompt(parts: [Part.text(prompt)]);
+        if (mounted) {
+          setState(() {
+            _historiaGenerada = response!.output!;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _historiaGenerada = 'Error al generar la historia: $e';
+          });
+        }
+        print('Error al generar la historia: $e');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false; // Detiene la animación de carga
+          });
+        }
       }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -281,38 +314,40 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                       child: Column(
                         children: [
                           if (_isLoading)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32.0),
-                            child: CircularProgressIndicator(),
-                          )
-                        else ...[
-                          Text(_historiaGenerada),
-                          if (_historiaGenerada.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                children: [
-                                  ElevatedButton.icon(
-                                    onPressed: _speak,
-                                    icon: const Icon(Icons.record_voice_over),
-                                    label: const Text('Escuchar'),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: _guardarCuento,
-                                    icon: const Icon(Icons.save_alt),
-                                    label: const Text('Guardar'),
-                                  ),
-                                ],
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 32.0),
+                              child: CircularProgressIndicator(),
+                            )
+                          else ...[
+                            Text(_historiaGenerada),
+                            if (_historiaGenerada.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16.0),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: _speak,
+                                      icon: const Icon(Icons.record_voice_over),
+                                      label: const Text('Escuchar'),
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: _guardarCuento,
+                                      icon: const Icon(Icons.save_alt),
+                                      label: const Text('Guardar'),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+                          ],
                         ],
-                        ]
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton( // Botón temporal para mostrar las voces
+                  ElevatedButton(
+                    // Botón temporal para mostrar las voces
                     onPressed: () async {
                       var voices = await flutterTts.getVoices;
                       print("Voces disponibles: $voices");
