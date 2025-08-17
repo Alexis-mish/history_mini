@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "450093864363",
+    "project_id": "historymini-5ebea",
+    "storage_bucket": "historymini-5ebea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:450093864363:android:f87c472a98d77d4af7eeee",
+        "android_client_info": {
+          "package_name": "com.example.historymini"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9mJvPiW2PUqPbhh1vjCt16r6KEOB1hSU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -4,26 +4,50 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await dotenv.load(fileName: ".env");
 
   final apiKey = dotenv.env['API_KEY'];
 
   if (apiKey == null) {
-    print('Error: GEMINI_API_KEY no encontrada en el archivo .env');
+    print('Error: API_KEY not found in .env file');
+    runApp(const MaterialApp(home: Scaffold(body: Center(child: Text("Error: API_KEY not found in .env file")))));
+    return;
+  }
+  
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    print('Error al inicializar Firebase: $e');
+    runApp(const MaterialApp(home: Scaffold(body: Center(child: Text("Error: Firebase no inicializado. Asegúrate de que flutterfire configure se ejecutó correctamente y que los archivos de configuración están en su lugar.")))));
     return;
   }
 
-  Gemini.init(apiKey: apiKey); // <-- 6. Usa la API key
+
+  Gemini.init(apiKey: apiKey);
 
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -45,40 +69,116 @@ class MyApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           border: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.white70), // Color del borde
+            borderSide: BorderSide(color: Colors.white70),
           ),
           enabledBorder: const OutlineInputBorder(
-            borderSide: BorderSide(
-              color: Colors.white70,
-            ), // Color del borde habilitado
+            borderSide: BorderSide(color: Colors.white70),
           ),
           focusedBorder: const OutlineInputBorder(
-            borderSide: BorderSide(
-              color: Colors.blueAccent,
-            ), // Color del borde al enfocar
+            borderSide: BorderSide(color: Colors.blueAccent),
           ),
-          labelStyle: const TextStyle(
-            color: Colors.white70,
-          ), // Color del texto de la etiqueta
-          hintStyle: const TextStyle(
-            color: Colors.white70,
-          ), // Color del texto de la sugerencia
+          labelStyle: const TextStyle(color: Colors.white70),
+          hintStyle: const TextStyle(color: Colors.white70),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(foregroundColor: Colors.white),
         ),
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.black87),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black87,
+        ),
         dropdownMenuTheme: DropdownMenuThemeData(
           menuStyle: MenuStyle(
             backgroundColor: WidgetStatePropertyAll(Colors.grey[800]),
           ),
         ),
       ),
-      themeMode: ThemeMode.dark, // Enable dark mode
-      home: const MyHomePage(),
+      themeMode: ThemeMode.dark,
+      // Utiliza StreamBuilder para reaccionar a los cambios de autenticación.
+      home: StreamBuilder<User?>(
+        stream: _auth.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Muestra un indicador de carga mientras se verifica el estado.
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          if (snapshot.hasData) {
+            return const MyHomePage();
+          } else {
+            
+            return const LoginScreen();
+          }
+        },
+      ),
     );
   }
 }
+
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
+  Future<void> _handleGoogleSignIn(BuildContext context) async {
+    try {
+      final googleClientId = dotenv.env['GOOGLE_CLIENT_ID'];
+      if (googleClientId == null) {
+        throw Exception('GOOGLE_CLIENT_ID not found in .env file.');
+      }
+
+      final GoogleSignInAccount? googleUser = await GoogleSignIn(
+        clientId: googleClientId,
+      ).signIn();
+      
+      final GoogleSignInAuthentication? googleAuth = await googleUser?.authentication;
+
+      if (googleAuth == null) {
+        return;
+      }
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al iniciar sesión con Google: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Iniciar Sesión'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () => _handleGoogleSignIn(context),
+                icon: const Icon(Icons.login),
+                label: const Text('Iniciar Sesión con Google'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  textStyle: const TextStyle(fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
@@ -94,35 +194,32 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   String _historiaGenerada = '';
   final gemini = Gemini.instance;
   String? _tipoDeCuentoSeleccionado;
-  final List<String> _tiposDeCuento = [
-    'Aventura',
-    'Terror',
-    'Romance',
-    'Fantasía',
-    'Ciencia Ficción',
-    'Misterio',
-    'Humor',
-  ];
+  final List<String> _tiposDeCuento = ['Aventura', 'Terror', 'Romance', 'Fantasía', 'Ciencia Ficción', 'Misterio', 'Humor'];
   final FlutterTts flutterTts = FlutterTts();
   late TabController _tabController;
   List<Map<String, String>> _cuentosFavoritos = [];
-  bool _isLoading =
-      false; //importante!!!!! este es el estado de la animacion de carga
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _cargarCuentosGuardados(); // Cargar los cuentos al inicializar la pantalla
+    _cargarCuentosGuardados();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _speak() async {
-    await flutterTts.setLanguage("es-ES"); // cambiar el idioma
+    await flutterTts.setLanguage("es-ES");
     await flutterTts.setVoice({
       "name": "es-MX-female-1",
       "locale": "es-ES",
-    }); // Aca se cambia la voz
-    await flutterTts.setSpeechRate(1.4); // Ajustar la velocidad
+    });
+    await flutterTts.setSpeechRate(1.4);
     await flutterTts.speak(_historiaGenerada);
   }
 
@@ -150,8 +247,8 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
           .map((story) => jsonEncode(story))
           .toList();
       await prefs.setStringList('cuentosGuardados', updatedSavedStoriesJson);
-      await _cargarCuentosGuardados(); // <-- Agrega esta línea aquí
-      print('Cuento guardado.'); // <--- Agregar este print
+      await _cargarCuentosGuardados();
+      print('Cuento guardado.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cuento guardado en favoritos')),
@@ -170,9 +267,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     print('Intentando cargar cuentos guardados...');
     final prefs = await SharedPreferences.getInstance();
     List<String>? savedStoriesJson = prefs.getStringList('cuentosGuardados');
-    print('Leyendo de SharedPreferences: $savedStoriesJson');
+    print('Reading from SharedPreferences: $savedStoriesJson');
     if (savedStoriesJson == null || savedStoriesJson.isEmpty) {
-      print('No hay cuentos guardados.');
+      print('No saved stories found.');
       setState(() {
         _cuentosFavoritos = [];
       });
@@ -182,7 +279,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       final cuentos = savedStoriesJson
           .map((json) => Map<String, String>.from(jsonDecode(json)))
           .toList();
-      print('Cuentos guardados cargados: $cuentos');
+      print('Saved stories loaded: $cuentos');
       setState(() {
         _cuentosFavoritos = cuentos;
       });
@@ -197,13 +294,13 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   void _generarHistoria() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _isLoading = true; // Inicia la animación de carga
-        _historiaGenerada = ''; // Limpia la historia anterior
+        _isLoading = true;
+        _historiaGenerada = '';
       });
 
       final nombre = _nombreController.text;
       final animal = _animalController.text;
-      final tipoDeCuento = _tipoDeCuentoSeleccionado != null
+      final tipoDeCuento = _tipoDeCuentoSeleccionado != null && _tipoDeCuentoSeleccionado!.isNotEmpty
           ? 'de tipo $_tipoDeCuentoSeleccionado'
           : '';
 
@@ -227,10 +324,20 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       } finally {
         if (mounted) {
           setState(() {
-            _isLoading = false; // Detiene la animación de carga
+            _isLoading = false;
           });
         }
       }
+    }
+  }
+
+
+  void _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      await GoogleSignIn().signOut();
+    } catch (e) {
+      print('Error al cerrar sesión: $e');
     }
   }
 
@@ -239,6 +346,13 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     return Scaffold(
       appBar: AppBar(
         title: const Text('History Mini'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+            tooltip: 'Cerrar Sesión',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -250,7 +364,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Tab for generating stories
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Form(
@@ -324,8 +437,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                               Padding(
                                 padding: const EdgeInsets.only(top: 16.0),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceAround,
+                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                                   children: [
                                     ElevatedButton.icon(
                                       onPressed: _speak,
@@ -347,7 +459,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
-                    // Botón temporal para mostrar las voces
                     onPressed: () async {
                       var voices = await flutterTts.getVoices;
                       print("Voces disponibles: $voices");
@@ -358,7 +469,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          // Tab for favorite stories
           ListView.builder(
             itemCount: _cuentosFavoritos.length,
             itemBuilder: (context, index) {
